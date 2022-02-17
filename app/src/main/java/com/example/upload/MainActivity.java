@@ -1,15 +1,20 @@
 package com.example.upload;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
+import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Message;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
@@ -33,15 +38,121 @@ public class MainActivity extends AppCompatActivity {
     public static final int IMAGE_SELECTOR_REQ = 1;
     private ValueCallback mFilePathCallback;
     private final int REQ_CODE = 111;
-
+    public Activity thisActivity = null;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+//        thisActivity = this;
+
+        // 안드로이드 파일 다운로드 구현 (웹메일 첨부 다운로드)
+//        mWebView.setDownloadListener(new DownloadListener() {
+//            @Override
+//            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+//                try {
+//                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+//                    DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+//
+//                    contentDisposition = URLDecoder.decode(contentDisposition,"UTF-8");
+//
+//                    // 파일명 잘라내기
+//
+//                    String fileName = contentDisposition;
+//                    if (fileName != null && fileName.length() > 0) {
+//                        int idxFileName = fileName.indexOf("filename=");
+//                        if (idxFileName > -1) {
+//                            fileName = fileName.substring(idxFileName + 9).trim();
+//                        }
+//
+//                        if (fileName.endsWith(";")) {
+//                            fileName = fileName.substring(0, fileName.length() - 1);
+//                        }
+//
+//                        if (fileName.startsWith("\"") && fileName.startsWith("\"")) {
+//                            fileName = fileName.substring(1, fileName.length() - 1);
+//                        }
+//                    }
+//
+//                    // 세션 유지를 위해 쿠키 세팅하기
+//                    String cookie = CookieManager.getInstance().getCookie(url);
+//                    request.addRequestHeader("Cookie", cookie);
+//
+//                    request.setMimeType(mimetype);
+//                    request.addRequestHeader("User-Agent", userAgent);
+//                    request.setDescription("Downloading File");
+//                    request.setAllowedOverMetered(true);
+//                    request.setAllowedOverRoaming(true);
+//                    request.setTitle(fileName);
+//                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+//                        request.setRequiresCharging(false);
+//                    }
+//
+//                    request.allowScanningByMediaScanner();
+//                    request.setAllowedOverMetered(true);
+//                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+//                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+//
+//                    dm.enqueue(request);
+//                    Toast.makeText(getApplicationContext(),"파일을 다운로드 합니다.", Toast.LENGTH_LONG).show();
+//                }
+//                catch (Exception e) {
+//                    if (ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+//                        if (ActivityCompat.shouldShowRequestPermissionRationale(thisActivity, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+//                            Toast.makeText(getBaseContext(), "파일 다운로드 권한을 허용해주십시오.", Toast.LENGTH_LONG).show();
+//                            ActivityCompat.requestPermissions(thisActivity, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1004);
+//                        }
+//                        else {
+//                            Toast.makeText(getBaseContext(), "파일 다운로드 권한을 허용해주십시오.", Toast.LENGTH_LONG).show();
+//                            ActivityCompat.requestPermissions(thisActivity, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1004);
+//                        }
+//                    }
+//                }
+//            }
+//        });
 
         // 웹뷰 시작
         mWebView = (WebView) findViewById(R.id.webview);
-        mWebView.setDownloadListener(new MyWebViewClient()); // 파일다운로드 권한
+        //mWebView.setDownloadListener(new MyWebViewClient()); // 파일다운로드 권한
+        mWebView.setDownloadListener(new DownloadListener() {
+            public void onDownloadStart(String url, String userAgent,
+                                        String contentDisposition, String mimetype,
+                                        long contentLength) {
+                Intent i = new Intent(Intent.ACTION_VIEW);
+                i.setData(Uri.parse(url));
+                startActivity(i);
+        }});
+
+        mWebView.setWebChromeClient(new WebChromeClient() {
+
+            @Override
+            public boolean onCreateWindow(final WebView view, boolean dialog,
+                                          boolean userGesture, Message resultMsg)
+            {
+                WebView newWebView = new WebView(MainActivity.this);
+                WebView.WebViewTransport transport
+                        = (WebView.WebViewTransport) resultMsg.obj;
+                transport.setWebView(newWebView);
+                resultMsg.sendToTarget();
+
+                newWebView.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                        Intent browserIntent = new Intent(Intent.ACTION_VIEW);
+                        browserIntent.setData(Uri.parse(url));
+                        startActivity(browserIntent);
+                        return true;
+                    }
+                });
+
+                return true;
+            }
+
+        });
+
+
+        출처: https://ibks-platform.tistory.com/80 [남산 아래 개발자들]
+
+
         setmWebViewFileUploadPossible();
 
 
@@ -174,7 +285,32 @@ public class MainActivity extends AppCompatActivity {
                 startActivityForResult(Intent.createChooser(intent, "Select picture"), IMAGE_SELECTOR_REQ);
                 return true;
             }
+            // 새창열기
+            @Override
+            public boolean onCreateWindow(final WebView view, boolean dialog,
+                                          boolean userGesture, Message resultMsg)
+            {
+                WebView newWebView = new WebView(MainActivity.this);
+                WebView.WebViewTransport transport
+                        = (WebView.WebViewTransport) resultMsg.obj;
+                transport.setWebView(newWebView);
+                resultMsg.sendToTarget();
+
+                newWebView.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                        Intent browserIntent = new Intent(Intent.ACTION_VIEW);
+                        browserIntent.setData(Uri.parse(url));
+                        startActivity(browserIntent);
+                        return true;
+                    }
+                });
+
+                return true;
+            }
         });
+
+
     }
 
     @Override
